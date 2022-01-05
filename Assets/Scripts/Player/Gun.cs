@@ -2,29 +2,32 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Gun : MonoBehaviour
+public enum GunType { AR, SN, SG }
+public class GunInfo
 {
+    public GunType gunType;
     public string gunName;
-    public float range;
-    public float accuracy;
-    public float fireRate;
-    public float reloadTime;
+    public float gunRange;
+    public float gunAccuracy;
+    public float gunFireRate;
+    public float gunReloadTime;
+    public float gunDamage;
+    public int gunReloadBulletCount;
+    public int gunCurrentBulletCount;
+    public int gunMaxBulletCount;
+    public int gunCarryBulletCount;
+    public float gunRetroActionForce;
+    public float gunRetroActionFineSightForce;
+    public Vector3 gunFineSightOriginPos;
+    public Animator gunAnimator;
+    public ParticleSystem gunMuzzleFlash;
+    public AudioSource gunFireSound;
+    
+}
 
-    public int damage;
-
-    public int reloadBulletCount;
-    public int currentBulletCount;
-    public int maxBulletCount;
-    public int carryBulletCount;
-
-    public float retroActionForce;
-    public float retroActionFineSightForce;
-
-    public Vector3 fineSightOriginPos;
-
-    public Animator animator;
-
-    public ParticleSystem muzzleFlash;
-
-    public AudioClip fireSound;
+public interface Gun
+{
+    GunInfo GetGunInfoInit { get; }
+    GunInfo gunInfo { get; set; }
+    void GunFire();
 }
