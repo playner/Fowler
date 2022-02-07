@@ -25,18 +25,17 @@ public class PlayerController : MonoBehaviour
 
             return 0;
         }
-        set { }
     }
 
     [SerializeField]
     private float playerJumpForce;
 
-    private bool isRun = false;
-    private bool isWalk = false;
-    private bool isGround = true;
+    public bool isRun = false;
+    public bool isWalk = false;
+    public bool isGround = true;
     private bool isCrouch = false;
 
-    private Vector3 lastPos;
+    private Vector3 lastPos = Vector3.zero;
 
     [SerializeField]
     private float playerCrouchPosY;
@@ -69,17 +68,23 @@ public class PlayerController : MonoBehaviour
 
     [SerializeField]
     private Camera camera;
+    private PlayerInput playerInput;
     private CapsuleCollider capsuleCollider;
     private Rigidbody playerRigid;
+
+    private GunController gunController;
 
     // Start is called before the first frame update
     void Start()
     {
+        playerInput = GetComponent<PlayerInput>();
         playerRigid = GetComponent<Rigidbody>();
         capsuleCollider = GetComponent<CapsuleCollider>();
+        gunController = GetComponent<GunController>();
 
         playerCrouchPosY = playerOriginPosY;
         playerOriginPosY = camera.transform.localPosition.y;
+
         isWalk = true;
     }
 
@@ -87,6 +92,7 @@ public class PlayerController : MonoBehaviour
     void Update()
     {
         Move();
+        moveCheck();
         CheckGround();
         Jump();
         Run();
@@ -98,7 +104,7 @@ public class PlayerController : MonoBehaviour
 
     void Crouch()
     {
-        if (Input.GetKeyDown(KeyCode.LeftControl))
+        if (playerInput.crouch)
         {
             isCrouch = true;
             StartCoroutine(crouchCoroutine());
@@ -139,7 +145,7 @@ public class PlayerController : MonoBehaviour
 
     void Jump()
     {
-        if(Input.GetKeyDown(KeyCode.Space) && isGround && !isRun)
+        if(playerInput.jump && isGround && !isRun)
         {
             playerRigid.velocity = transform.up * playerJumpForce;
         }
@@ -147,52 +153,55 @@ public class PlayerController : MonoBehaviour
 
     void Run()
     {
-        if (Input.GetKey(KeyCode.LeftShift))
+        if (playerInput.run)
         {
             isRun = true;
-            isWalk = false;
         }
 
-        if(Input.GetKeyUp(KeyCode.LeftShift))
+        if(!playerInput.run)
         {
             isRun = false;
-            isWalk = true;
         }
     }
 
     void Move()
     {
-        float dirMoveX = Input.GetAxisRaw("Horizontal");
-        float dirMoveZ = Input.GetAxisRaw("Vertical");
-
-        Vector3 horizontalMove = transform.right * dirMoveX;
-        Vector3 verticalMove = transform.forward * dirMoveZ;
+        Vector3 horizontalMove = transform.right * playerInput.moveHorizontal;
+        Vector3 verticalMove = transform.forward * playerInput.moveVertical;
 
         Vector3 playerVelocity = (horizontalMove + verticalMove).normalized * playerApplySpeed;
 
         playerRigid.MovePosition(transform.position + playerVelocity * Time.deltaTime);
-
+        //gunController.animator.SetBool("Walk", isWalk);
     }
 
-    //void moveCheck()
-    //{
-    //    if(!isRun && isGround)
-    //    {
-    //        if(Vector3.Distance(lastPos, transform.position) >= 0.01f)
-    //        {
-    //            isWalk = true;
-    //        }
-    //        else
-    //        {
-    //            isWalk = false;
-    //        }
-    //        lastPos = transform.position;
-    //    }
-    //}
+    void moveCheck()
+    {
+        if(!isRun && isGround)
+        {
+            if(Vector3.Distance(lastPos, transform.position) >= 0.01f)
+            {
+                isWalk = true;
+            }
+
+            else
+            {
+                isWalk = false;
+            }
+
+            lastPos = transform.position;
+
+        }
+
+        else
+        {
+            isWalk = false;
+        }
+    }
 
     void CameraRotation()
     {
-        float xRotation = Input.GetAxisRaw("Mouse Y");
+        float xRotation = playerInput.mouseXRotaion;
         float cameraRotationX = xRotation * playerLookSensitivity;
         currentCameraRotationX -= cameraRotationX;
         currentCameraRotationX = Mathf.Clamp(currentCameraRotationX, -cameraRotationLimit, cameraRotationLimit);
@@ -202,7 +211,7 @@ public class PlayerController : MonoBehaviour
 
     void CharacterRoation()
     {
-        float yRotation = Input.GetAxisRaw("Mouse X");
+        float yRotation = playerInput.mouseYRotaion;
         Vector3 characterRotationY = new Vector3(0f, yRotation, 0f) * playerLookSensitivity;
         playerRigid.MoveRotation(playerRigid.rotation * Quaternion.Euler(characterRotationY));
     }

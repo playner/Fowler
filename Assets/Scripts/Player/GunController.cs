@@ -4,167 +4,146 @@ using UnityEngine;
 
 public class GunController : MonoBehaviour
 {
-
-    [SerializeField]
-    private Gun currentGun;
-    
-    private bool isReload = false;
-
-    
-
-    // Start is called before the first frame update
-    void Start()
+    public enum State
     {
-        //초기 건 Init
-        currentGun = ChoiceGun.ReturnGunType(GunType.AR);
+        Ready,
+        Empty,
+        Reloading
     }
 
-    // Update is called once per frame
-    void Update()
+    public State state { get; private set; }
+
+    public Transform fireTransform;
+    public Transform emptyShellTransform;
+
+    public ParticleSystem muzzleFlashEffect;
+    public ParticleSystem shellEjectEffect;
+
+    private AudioSource gunAudioPlayer;
+    public AudioClip shotClip;
+    public AudioClip reloadClip;
+    public Animator animator;
+
+    public float gunDamage;
+    public float gunRange;
+    public float gunAccuracy;
+    public float gunFireRate;
+    public float gunReloadTime;
+    public float gunLastFireTime;
+
+    public int gunReloadBulletCount = 5;
+    public int gunCurrentBulletCount = 5;
+    public int gunMaxBulletCount = 20;
+    public int gunCarryBulletCount = 20;
+
+    void Awake()
     {
-        InputController();
+        gunAudioPlayer = GetComponent<AudioSource>();
+        animator = GetComponent<Animator>();
     }
 
-    void InputController()
+    private void OnEnable()
     {
-        if (Input.GetButton("Fire1"))
+        // 총 상태 초기화
+        gunCurrentBulletCount = gunReloadBulletCount;
+        state = State.Ready;
+        gunLastFireTime = 0;
+    }
+
+    public void Fire()
+    {
+        if (state == State.Ready && Time.time >= gunLastFireTime + gunFireRate)
         {
-            currentGun.GunFire();
-        }
-        else if (Input.GetButtonUp("Fire1"))
-        {
-           
-        }
-    }
-    
-}
+            gunLastFireTime = Time.time;
 
-#region TODO : 나중에 클래스로 따로 분리 부탁함
-
-public class ChoiceGun
-{
-    public static Gun ReturnGunType(GunType gunType)
-    {
-        Gun gunTemp = null;
-        switch(gunType)
-        {
-            case GunType.AR:
-                gunTemp = new AR();
-                gunTemp.gunInfo = gunTemp.GetGunInfoInit;
-                break;
-            case GunType.SG:
-                gunTemp = new SG();
-                gunTemp.gunInfo = gunTemp.GetGunInfoInit;
-                break;
-            case GunType.SN:
-                gunTemp = new SN();
-                gunTemp.gunInfo = gunTemp.GetGunInfoInit;
-                break;
-        }
-        return gunTemp;
-    }
-}
-
-public class  AR : Gun
-{    
-    //실제 정보 애가 전역변수요
-    public GunInfo gunInfo
-    {
-        get; set;
-    }
-    public GunInfo GetGunInfoInit
-    {
-        get
-        {
-            GunInfo tempGunInfo = null;
-            GunType gunType = GunType.AR;
-            string gunName = "M4A1";
-            float gunRange = 100;
-            float gunAccuracy = 0.01f;
-            float gunFireRate = 0.2f;
-            float gunReloadTime = 2;
-            float gunDamage = 15;
-            int gunReloadBulletCount = 30;
-            int gunCurrentBulletCount = 30;
-            int gunMaxBulletCount = 150;
-            int gunCarryBulletCount = 150;
-            float gunRetroActionForce = 0.3f;
-            float gunRetroActionFineSightForce = 0.7f;
-            Vector3 gunFineSightOriginPos;
-            Animator gunAnimator = Resources.Load<Animator>("Animation/Soldier");
-            ParticleSystem gunMuzzleFlash = Resources.Load<ParticleSystem>("Prefabs/MuzzleFlash");
-            AudioSource gunFireSound = Resources.Load<AudioSource>("Assets/Free Pack/Hand Gun 1");
-
-            return tempGunInfo;
+            Shot();
         }
     }
 
-   public void GunFire()
-   {
-        if (gunInfo.gunFireRate > 0)
-            gunInfo.gunFireRate--;
-   
-        gunInfo.gunCurrentBulletCount--;
-        currentFireRate = gunInfo.gunFireRate;
-        gunInfo.gunMuzzleFlash.Play();
-   }
-}
-public class SN : Gun
-{
-    //실제 정보
-    public GunInfo gunInfo
+    private void Shot()
     {
-        get;set;
-    }
-    //
-    //총 정보 호출시 초기화
-    public GunInfo GetGunInfoInit
-    {
-        get
-        {
-            GunInfo tempGunInfo = null;
-            GunType gunType = GunType.SN;
-            string gunName = "M24";
-            float gunRange = 500;
-            float gunAccuracy = 0.01f;
-            float gunFireRate = 3;
-            float gunReloadTime = 5;
-            float gunDamage = 80;
-            int gunReloadBulletCount = 5;
-            int gunCurrentBulletCount = 5;
-            int gunMaxBulletCount = 20;
-            int gunCarryBulletCount = 20;
-            float gunRetroActionForce = 0.3f;
-            float gunRetroActionFineSightForce = 0.7f;
-            Vector3 gunFineSightOriginPos ;
-            Animator gunAnimator = Resources.Load<Animator>("Animation/Soldier");
-            ParticleSystem gunMuzzleFlash = Resources.Load<ParticleSystem>("Prefabs/MuzzleFlash");
-            AudioSource gunFireSound = Resources.Load<AudioSource>("Assets/Free Pack/Hand Gun 1");
+        RaycastHit hit;
 
-            return tempGunInfo;
+        Vector3 hitPosition = Vector3.zero;
+
+        if (Physics.Raycast(fireTransform.position, fireTransform.forward, out hit, gunRange))
+        {
+            IDamageable target = hit.collider.GetComponent<IDamageable>();
+
+            if (target != null)
+            {
+                target.OnDamage(gunDamage, hit.point, hit.normal);
+            }
+
+            hitPosition = hit.point;
+        }
+
+        else
+        {
+            hitPosition = fireTransform.position + fireTransform.forward * gunRange;
+        }
+
+        ShotEffect();
+
+        gunCurrentBulletCount--;
+
+        if (gunCurrentBulletCount <= 0)
+        {
+            state = State.Empty;
         }
     }
-    public void GunFire()
+
+    private void ShotEffect()
     {
-        //if (GunFireRate > 0)
-        GetGunInfoInit.gunFireRate -= Time.deltaTime;
+        muzzleFlashEffect.Play();
+
+        shellEjectEffect.Play();
+
+        gunAudioPlayer.PlayOneShot(shotClip);
     }
+
+    // 재장전 시도
+    public bool Reload()
+    {
+        if (state == State.Reloading || gunCurrentBulletCount >= gunReloadBulletCount)
+        {
+            return false;
+        }
+
+        StartCoroutine(ReloadRoutine());
+        return true;
+    }
+
+    // 실제 재장전 처리를 진행
+    IEnumerator ReloadRoutine()
+    {
+        if (gunCarryBulletCount > 0) //재장전할 때 들고있는 총알이 있다면
+        {
+            state = State.Reloading;
+
+            gunAudioPlayer.PlayOneShot(reloadClip);
+
+            //animator.SetTrigger("Reload"); //애니메이션 재생을 위한 트리거
+
+            gunCarryBulletCount += gunCurrentBulletCount; //재장전 하면 일단 현재 장전되어있는 총알을 들고있는 총알에 넣고
+            gunCurrentBulletCount = 0; //들고있는 총알은 0발로
+
+            yield return new WaitForSeconds(gunReloadTime); //현재 총의 재장전 시간만큼 대기
+
+            if (gunCarryBulletCount >= gunReloadBulletCount) //현재 총의 재장전할 총알보다 들고있는 총알이 많다면
+            {
+                gunCurrentBulletCount = gunReloadBulletCount; //많으니까 재장전할 총알만큼만 재장전하고
+                gunCarryBulletCount -= gunReloadBulletCount; //나머지에서 그만큼 빼줌
+            }
+            else //재장전할 총알이 너무 적다면
+            {
+                gunCurrentBulletCount = gunCarryBulletCount; //일단 들고 있는 만큼만
+                gunCarryBulletCount = 0; //들고있는 만큼 장전했으니까 나머지 총알은 0
+            }
+
+            // 총의 현재 상태를 발사 준비된 상태로 변경
+            state = State.Ready;
+        }
+    }
+
 }
-
-
-public class SG : Gun
-{
-    //실제 정보
-    public GunInfo gunInfo
-    {
-        get; set;
-    }
-    public GunInfo GetGunInfoInit { get;}
-    public void GunFire()
-    {
-        //if (currentFireRate > 0)
-         //   currentFireRate -= Time.deltaTime;
-    }
-}
-
-#endregion
